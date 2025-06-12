@@ -88,15 +88,151 @@ if (maze[endPoint.row][endPoint.col] === 1) {
 
 let gameWon = false; // Game state flag
 
+// Global Variables for Touch Input
+let joystickData = { x: 0, y: 0, active: false };
+let lookData = { deltaX: 0, deltaY: 0, touchId: null, lastX: 0, lastY: 0, active: false };
+
 // Three.js Setup
 let scene, camera, renderer;
 const gameContainer = document.getElementById('game-container'); // Get reference to the container
+
+// Function to set up touch controls based on device capabilities
+function setupTouchControls() {
+    const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    const touchControlsDiv = document.getElementById('touch-controls');
+    // gameContainer is global and should be defined before this is called.
+
+    if (isTouchDevice) {
+        if (touchControlsDiv) touchControlsDiv.style.display = 'block';
+        // Remove pointer lock capability for touch devices
+        if (gameContainer) gameContainer.removeEventListener('click', requestPointerLock);
+        // Hide any desktop-specific instructions if they existed (example)
+        // document.getElementById('desktop-instructions')?.style.display = 'none';
+    } else {
+        if (touchControlsDiv) touchControlsDiv.style.display = 'none';
+        // Add pointer lock capability for non-touch devices
+        if (gameContainer) gameContainer.addEventListener('click', requestPointerLock);
+        // Show any desktop-specific instructions if they existed (example)
+        // document.getElementById('desktop-instructions')?.style.display = 'block';
+    }
+}
+
+// Call setupTouchControls when the script loads.
+// This is already after gameContainer is defined.
+setupTouchControls();
+
+
+// Joystick Elements and Event Handling
+const joystickArea = document.getElementById('joystick-area');
+const joystickBase = document.getElementById('joystick-base');
+const joystickNub = document.getElementById('joystick-nub');
+
+if (joystickArea && joystickBase && joystickNub) { // Ensure elements exist
+    const baseRect = joystickBase.getBoundingClientRect(); // Get dimensions once, assuming fixed size/pos
+    const nubRadius = joystickNub.offsetWidth / 2;
+    const baseRadius = joystickBase.offsetWidth / 2;
+    const maxDistance = baseRadius - nubRadius;
+
+    function handleJoystickTouch(event) {
+        event.preventDefault();
+        const touch = event.changedTouches[0];
+        let dx = touch.clientX - (baseRect.left + baseRadius);
+        let dy = touch.clientY - (baseRect.top + baseRadius);
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance > maxDistance) {
+            dx = (dx / distance) * maxDistance;
+            dy = (dy / distance) * maxDistance;
+        }
+        joystickNub.style.transform = `translate(${dx}px, ${dy}px)`;
+        joystickData.x = dx / maxDistance;
+        joystickData.y = -(dy / maxDistance); // Invert Y for typical game controls (up is positive)
+    }
+
+    joystickArea.addEventListener('touchstart', function(event) {
+        joystickData.active = true;
+        handleJoystickTouch(event);
+    });
+
+    joystickArea.addEventListener('touchmove', function(event) {
+        if (!joystickData.active) return;
+        handleJoystickTouch(event);
+    });
+
+    function resetJoystick() {
+        joystickData.active = false;
+        joystickNub.style.transform = 'translate(0px, 0px)';
+        joystickData.x = 0;
+        joystickData.y = 0;
+    }
+
+    joystickArea.addEventListener('touchend', function(event) {
+        event.preventDefault();
+        resetJoystick();
+    });
+    joystickArea.addEventListener('touchcancel', function(event) {
+        event.preventDefault();
+        resetJoystick();
+    });
+}
+
+
+// Look Area Event Handling
+const lookArea = document.getElementById('look-area');
+if (lookArea) { // Ensure element exists
+    lookArea.addEventListener('touchstart', function(event) {
+        event.preventDefault();
+        if (lookData.active && lookData.touchId !== null) return; // Already a touch active
+
+        const touch = event.changedTouches[0];
+        lookData.touchId = touch.identifier;
+        lookData.lastX = touch.clientX;
+        lookData.lastY = touch.clientY;
+        lookData.active = true;
+        lookData.deltaX = 0; // Reset deltas
+        lookData.deltaY = 0;
+    });
+
+    lookArea.addEventListener('touchmove', function(event) {
+        event.preventDefault();
+        if (!lookData.active) return;
+
+        for (let i = 0; i < event.changedTouches.length; i++) {
+            const touch = event.changedTouches[i];
+            if (touch.identifier === lookData.touchId) {
+                lookData.deltaX = touch.clientX - lookData.lastX;
+                lookData.deltaY = touch.clientY - lookData.lastY;
+                lookData.lastX = touch.clientX;
+                lookData.lastY = touch.clientY;
+                break;
+            }
+        }
+    });
+
+    function resetLookData(event) {
+         event.preventDefault();
+        if (!lookData.active) return;
+
+        for (let i = 0; i < event.changedTouches.length; i++) {
+            const touch = event.changedTouches[i];
+            if (touch.identifier === lookData.touchId) {
+                lookData.deltaX = 0;
+                lookData.deltaY = 0;
+                lookData.active = false;
+                lookData.touchId = null;
+                break;
+            }
+        }
+    }
+    lookArea.addEventListener('touchend', resetLookData);
+    lookArea.addEventListener('touchcancel', resetLookData);
+}
 
 const wallSize = 1;
 const wallHeight = 1;
 const playerHeight = wallHeight / 2; // Player/camera height
 
-// Keyboard state
+// Keyboard state (remains for non-touch devices)
 const keysPressed = {};
 
 document.addEventListener('keydown', (event) => {
@@ -191,6 +327,7 @@ function renderMaze() {
 
 // Animation Loop
 const moveSpeed = 0.05;
+const touchMoveFactor = 0.8; // To make joystick movement slightly less sensitive than keyboard
 const playerRadius = 0.25 * wallSize; // Player's half-width for collision
 
 // Collision detection helper function
@@ -228,56 +365,50 @@ function animate() {
   // However, three.js uses a camera that looks down its local -Z axis.
   // So, to get a vector to the camera's right, we can cross camera.up with the forward vector.
   const right = new THREE.Vector3();
-  right.crossVectors(camera.up, forward).normalize(); // Points to camera's left
+  right.crossVectors(forward, camera.up).normalize(); // Now points to camera's actual right
 
+  let finalMoveX = 0;
+  let finalMoveZ = 0;
+
+  // Keyboard Input Contribution
+  if (keysPressed['w']) {
+    finalMoveZ += forward.z * moveSpeed;
+    finalMoveX += forward.x * moveSpeed;
+  }
+  if (keysPressed['s']) {
+    finalMoveZ -= forward.z * moveSpeed;
+    finalMoveX -= forward.x * moveSpeed;
+  }
+  if (keysPressed['a']) { // Strafe Left
+    finalMoveZ -= right.z * moveSpeed;
+    finalMoveX -= right.x * moveSpeed;
+  }
+  if (keysPressed['d']) { // Strafe Right
+    finalMoveZ += right.z * moveSpeed;
+    finalMoveX += right.x * moveSpeed;
+  }
+
+  // Joystick Input Contribution
+  if (joystickData.active) {
+    // joystickData.y is negative for up (forward), positive for down (backward)
+    // Forward movement (joystick Y is negative)
+    finalMoveZ += joystickData.y * -1 * forward.z * moveSpeed * touchMoveFactor;
+    finalMoveX += joystickData.y * -1 * forward.x * moveSpeed * touchMoveFactor;
+
+    // Strafe movement (joystick X)
+    finalMoveZ += joystickData.x * right.z * moveSpeed * touchMoveFactor;
+    finalMoveX += joystickData.x * right.x * moveSpeed * touchMoveFactor;
+  }
+
+  // Apply Combined Movement with Collision Detection
   const currentX = camera.position.x;
   const currentZ = camera.position.z;
 
-  if (keysPressed['w']) {
-    let dx = forward.x * moveSpeed;
-    let dz = forward.z * moveSpeed;
-
-    // Check X-axis movement (using playerRadius for collision point)
-    if (!isWall(currentX + dx, currentZ, Math.sign(dx), 0)) {
-      camera.position.x += dx;
-    }
-    // Check Z-axis movement (using potentially updated camera.position.x)
-    if (!isWall(camera.position.x, currentZ + dz, 0, Math.sign(dz))) {
-      camera.position.z += dz;
-    }
+  if (finalMoveX !== 0 && !isWall(currentX + finalMoveX, currentZ, Math.sign(finalMoveX), 0)) {
+    camera.position.x += finalMoveX;
   }
-  if (keysPressed['s']) {
-    let dx = -forward.x * moveSpeed;
-    let dz = -forward.z * moveSpeed;
-
-    if (!isWall(currentX + dx, currentZ, Math.sign(dx), 0)) {
-      camera.position.x += dx;
-    }
-    if (!isWall(camera.position.x, currentZ + dz, 0, Math.sign(dz))) {
-      camera.position.z += dz;
-    }
-  }
-  if (keysPressed['a']) { // Strafe Left
-    let dx = right.x * moveSpeed; // 'right' vector points left, so positive moveSpeed is correct
-    let dz = right.z * moveSpeed;
-
-    if (!isWall(currentX + dx, currentZ, Math.sign(dx), 0)) {
-      camera.position.x += dx;
-    }
-    if (!isWall(camera.position.x, currentZ + dz, 0, Math.sign(dz))) {
-      camera.position.z += dz;
-    }
-  }
-  if (keysPressed['d']) { // Strafe Right
-    let dx = -right.x * moveSpeed; // Negate 'right' vector (which points left) for rightward movement
-    let dz = -right.z * moveSpeed;
-
-    if (!isWall(currentX + dx, currentZ, Math.sign(dx), 0)) {
-      camera.position.x += dx;
-    }
-    if (!isWall(camera.position.x, currentZ + dz, 0, Math.sign(dz))) {
-      camera.position.z += dz;
-    }
+  if (finalMoveZ !== 0 && !isWall(camera.position.x, currentZ + finalMoveZ, 0, Math.sign(finalMoveZ))) {
+    camera.position.z += finalMoveZ;
   }
 
   // Check for Win Condition
@@ -312,22 +443,33 @@ function animate() {
 
 
 // Pointer Lock and Mouse Controls
-if (gameContainer) { // Ensure gameContainer is available
-  gameContainer.addEventListener('click', () => {
+function requestPointerLock() {
+  // Only request if not already locked and game not won
+  if (document.pointerLockElement !== gameContainer && !gameWon) {
     gameContainer.requestPointerLock();
-  });
+  }
 }
+// The event listener will be added/removed by setupTouchControls
 
 document.addEventListener('mousemove', (event) => {
-  if (document.pointerLockElement === gameContainer) {
+  if (document.pointerLockElement === gameContainer) { // Mouse look
     const movementX = event.movementX || 0;
     const movementY = event.movementY || 0;
+    const mouseSensitivity = 0.002;
 
-    camera.rotation.y -= movementX * 0.002;
-    camera.rotation.x -= movementY * 0.002;
-
-    // Clamp vertical rotation
+    camera.rotation.y -= movementX * mouseSensitivity;
+    camera.rotation.x -= movementY * mouseSensitivity;
     camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
+
+  } else if (lookData.active && (lookData.deltaX !== 0 || lookData.deltaY !== 0)) { // Touch look
+    const touchLookSensitivity = 0.003; // Adjusted sensitivity for touch
+    camera.rotation.y -= lookData.deltaX * touchLookSensitivity;
+    camera.rotation.x -= lookData.deltaY * touchLookSensitivity;
+    camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
+
+    // Reset deltas after applying them for this frame to prevent continuous rotation from one touch drag
+    lookData.deltaX = 0;
+    lookData.deltaY = 0;
   }
 });
 
