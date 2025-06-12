@@ -12,5 +12,55 @@ body { margin: 0; overflow: hidden; background-color: #000; }
     font-size: 2em;
     border-radius: 10px;
     text-align: center;
-    z-index: 100; /* Ensure it's on top */
+    z-index: 1000; /* Higher z-index */
+    display: none; /* Initially hidden by default, JS will show it */
+}
+
+#touch-controls {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 100%; /* Cover the whole screen to place joystick and look areas */
+    z-index: 100; /* Above game-container, below win-message */
+    pointer-events: none; /* Parent container doesn't capture events, children will */
+    display: none; /* Initially hidden, shown only on touch devices by JS */
+}
+
+#joystick-area {
+    position: absolute;
+    bottom: 30px;
+    left: 30px;
+    width: 150px; /* Adjust size as needed */
+    height: 150px;
+    pointer-events: auto; /* This area should capture events */
+}
+
+#joystick-base {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(128, 128, 128, 0.3);
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#joystick-nub {
+    width: 60px; /* Adjust size as needed */
+    height: 60px;
+    background-color: rgba(128, 128, 128, 0.7);
+    border-radius: 50%;
+    position: absolute; /* Will be moved by JS */
+}
+
+#look-area {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 50%; /* Right half of the screen */
+    height: 100%; /* Full height */
+    pointer-events: auto; /* This area should capture events */
+    /* background-color: rgba(255,0,0,0.1); */ /* Optional: for debugging visibility */
 }
