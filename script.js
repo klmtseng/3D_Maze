@@ -132,25 +132,51 @@ function initThreeJS() {
   // Renderer
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
-  gameContainer.appendChild(renderer.domElement); // Use the variable
+  gameContainer.appendChild(renderer.domElement);
 
-  // Lighting
-  const ambientLight = new THREE.AmbientLight(0x404040); // soft white light
+  // --- Lighting Adjustments ---
+
+  // Adjusted Ambient Light
+  const ambientLight = new THREE.AmbientLight(0x454545); // Slightly brighter ambient light
   scene.add(ambientLight);
 
-  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.7);
+  // Adjusted Directional Light
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5); // Reduced intensity
   directionalLight.position.set(1, 1.5, 1).normalize();
   scene.add(directionalLight);
+
+  // Player Torch Light
+  const torchLight = new THREE.PointLight(0xffaa33, 1.0, 10 * wallSize, 2); // Color, Intensity, Distance, Decay
+  // torchLight.position.set(0, 0, 0.1); // Optional: position slightly in front of camera's local origin
+  camera.add(torchLight); // Attach torch to camera
+
+  // --- End Lighting Adjustments ---
 }
 
 // Create Maze Geometry
 function renderMaze() {
-  const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x808080 }); // Grey, responds to light
+  const textureLoader = new THREE.TextureLoader();
+
+  // Placeholder URLs - these will need to be replaced with actual texture URLs
+  const wallTextureUrl = 'https://threejs.org/examples/textures/brick_diffuse.jpg'; // Example brick texture
+  const floorTextureUrl = 'https://threejs.org/examples/textures/hardwood2_diffuse.jpg'; // Example wood floor texture
+
+  const wallTexture = textureLoader.load(wallTextureUrl);
+  // wallTexture.wrapS = THREE.RepeatWrapping; // Example: enable texture wrapping
+  // wallTexture.wrapT = THREE.RepeatWrapping;
+  // wallTexture.repeat.set(1, 1); // Example: how many times texture repeats
+
+  const wallMaterial = new THREE.MeshStandardMaterial({
+    map: wallTexture,
+    // color: 0x808080, // Color can be removed or set to white (0xffffff) to not tint the texture
+  });
 
   for (let r = 0; r < maze.length; r++) {
     for (let c = 0; c < maze[r].length; c++) {
       if (maze[r][c] === 1) { // If it's a wall
         const wallGeometry = new THREE.BoxGeometry(wallSize, wallHeight, wallSize);
+        // Each wall segment gets its own material instance if we want different UVs or repeats per wall,
+        // but for a uniform look, one material is fine.
         const wallMesh = new THREE.Mesh(wallGeometry, wallMaterial);
         wallMesh.position.set(c * wallSize, wallHeight / 2, r * wallSize);
         scene.add(wallMesh);
@@ -158,12 +184,19 @@ function renderMaze() {
     }
   }
 
-  // Add a floor plane
+  const floorTexture = textureLoader.load(floorTextureUrl);
+  // floorTexture.wrapS = THREE.RepeatWrapping;
+  // floorTexture.wrapT = THREE.RepeatWrapping;
+  // floorTexture.repeat.set(maze[0].length / 4, maze.length / 4); // Example: repeat based on maze size
+
+  const floorMaterial = new THREE.MeshStandardMaterial({
+    map: floorTexture,
+    // color: 0x333333, // Color can be removed or set to white (0xffffff)
+    side: THREE.DoubleSide
+  });
   const floorGeometry = new THREE.PlaneGeometry(maze[0].length * wallSize, maze.length * wallSize);
-  const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x333333, side: THREE.DoubleSide });
   const floorPlane = new THREE.Mesh(floorGeometry, floorMaterial);
-  floorPlane.rotation.x = -Math.PI / 2; // Rotate to be horizontal
-  // Adjust floor position to be centered under the maze
+  floorPlane.rotation.x = -Math.PI / 2;
   floorPlane.position.set((maze[0].length * wallSize) / 2 - wallSize/2, 0, (maze.length * wallSize) / 2 - wallSize/2);
   scene.add(floorPlane);
 
@@ -194,91 +227,101 @@ const moveSpeed = 0.05;
 const playerRadius = 0.25 * wallSize; // Player's half-width for collision
 
 // Collision detection helper function
-// x, z are potential future center coordinates of the player
-// dirX, dirZ represent the direction of movement for this check (e.g., for x-check, dirX is sign of dx, dirZ is 0)
-function isWall(x, z, dirX, dirZ) {
-  // Calculate the point to check based on player radius and direction
-  const checkX = x + dirX * playerRadius;
-  const checkZ = z + dirZ * playerRadius;
+// potentialNextPlayerX, potentialNextPlayerZ: center of player *after* this specific axial movement
+// movementComponentX, movementComponentZ: the delta of movement FOR THIS AXIAL CHECK (one will be 0)
+function isWall(potentialNextPlayerX, potentialNextPlayerZ, movementComponentX, movementComponentZ) {
+  const pointsToCheck = [];
+  // playerRadius and wallSize are global variables assumed to be accessible
 
-  const mapCol = Math.floor(checkX / wallSize);
-  const mapRow = Math.floor(checkZ / wallSize);
-
-  // Check bounds
-  if (mapRow < 0 || mapRow >= maze.length || mapCol < 0 || mapCol >= maze[0].length) {
-    return true; // Treat out of bounds as a wall
+  if (movementComponentX !== 0) { // Moving along X-axis
+    // Determine the X coordinate of the leading edge based on direction
+    const leadingX = potentialNextPlayerX + Math.sign(movementComponentX) * playerRadius;
+    // Points are at the 'front' corners in the direction of X movement, using playerRadius for width
+    pointsToCheck.push({ x: leadingX, z: potentialNextPlayerZ - playerRadius });
+    pointsToCheck.push({ x: leadingX, z: potentialNextPlayerZ + playerRadius });
+  } else if (movementComponentZ !== 0) { // Moving along Z-axis
+    // Determine the Z coordinate of the leading edge based on direction
+    const leadingZ = potentialNextPlayerZ + Math.sign(movementComponentZ) * playerRadius;
+    // Points are at the 'front' corners in the direction of Z movement, using playerRadius for width
+    pointsToCheck.push({ x: potentialNextPlayerX - playerRadius, z: leadingZ });
+    pointsToCheck.push({ x: potentialNextPlayerX + playerRadius, z: leadingZ });
   }
-  // Check if the cell in the maze is a wall
-  return maze[mapRow][mapCol] === 1;
+
+  for (const point of pointsToCheck) {
+    const mapCol = Math.floor(point.x / wallSize);
+    const mapRow = Math.floor(point.z / wallSize);
+
+    // Check bounds
+    if (mapRow < 0 || mapRow >= maze.length || mapCol < 0 || mapCol >= maze[0].length) {
+      return true; // Treat out of bounds as a wall
+    }
+    // Check if the cell in the maze is a wall
+    if (maze[mapRow][mapCol] === 1) {
+      return true; // Collision detected
+    }
+  }
+  return false; // No collision
 }
 
 
 function animate() {
   requestAnimationFrame(animate);
 
-  // Movement Logic
   const forward = new THREE.Vector3();
   camera.getWorldDirection(forward);
-  forward.y = 0; // Keep movement horizontal
+  forward.y = 0;
   forward.normalize();
 
-  // Calculate right vector based on current camera view (yaw)
-  // camera.up is (0,1,0)
-  // right = forward x camera.up (if using right-handed coordinate system for view)
-  // However, three.js uses a camera that looks down its local -Z axis.
-  // So, to get a vector to the camera's right, we can cross camera.up with the forward vector.
   const right = new THREE.Vector3();
-  right.crossVectors(camera.up, forward).normalize(); // Points to camera's left
+  right.crossVectors(camera.up, forward).normalize();
 
   const currentX = camera.position.x;
   const currentZ = camera.position.z;
 
-  if (keysPressed['w']) {
-    let dx = forward.x * moveSpeed;
-    let dz = forward.z * moveSpeed;
+  // Accumulate successful movement components
+  let finalDeltaX = 0;
+  let finalDeltaZ = 0;
 
-    // Check X-axis movement (using playerRadius for collision point)
-    if (!isWall(currentX + dx, currentZ, Math.sign(dx), 0)) {
-      camera.position.x += dx;
-    }
-    // Check Z-axis movement (using potentially updated camera.position.x)
-    if (!isWall(camera.position.x, currentZ + dz, 0, Math.sign(dz))) {
-      camera.position.z += dz;
-    }
+  // Temporary variables to hold axis components for current key press
+  let moveComponentX = 0;
+  let moveComponentZ = 0;
+
+  if (keysPressed['w']) {
+    moveComponentX = forward.x * moveSpeed;
+    moveComponentZ = forward.z * moveSpeed;
   }
   if (keysPressed['s']) {
-    let dx = -forward.x * moveSpeed;
-    let dz = -forward.z * moveSpeed;
-
-    if (!isWall(currentX + dx, currentZ, Math.sign(dx), 0)) {
-      camera.position.x += dx;
-    }
-    if (!isWall(camera.position.x, currentZ + dz, 0, Math.sign(dz))) {
-      camera.position.z += dz;
-    }
+    moveComponentX = -forward.x * moveSpeed;
+    moveComponentZ = -forward.z * moveSpeed;
   }
   if (keysPressed['a']) { // Strafe Left
-    let dx = right.x * moveSpeed; // 'right' vector points left, so positive moveSpeed is correct
-    let dz = right.z * moveSpeed;
-
-    if (!isWall(currentX + dx, currentZ, Math.sign(dx), 0)) {
-      camera.position.x += dx;
-    }
-    if (!isWall(camera.position.x, currentZ + dz, 0, Math.sign(dz))) {
-      camera.position.z += dz;
-    }
+    moveComponentX = right.x * moveSpeed;
+    moveComponentZ = right.z * moveSpeed;
   }
   if (keysPressed['d']) { // Strafe Right
-    let dx = -right.x * moveSpeed; // Negate 'right' vector (which points left) for rightward movement
-    let dz = -right.z * moveSpeed;
+    moveComponentX = -right.x * moveSpeed;
+    moveComponentZ = -right.z * moveSpeed;
+  }
 
-    if (!isWall(currentX + dx, currentZ, Math.sign(dx), 0)) {
-      camera.position.x += dx;
-    }
-    if (!isWall(camera.position.x, currentZ + dz, 0, Math.sign(dz))) {
-      camera.position.z += dz;
+  // If there's an X component to test
+  if (moveComponentX !== 0) {
+    if (!isWall(currentX + moveComponentX, currentZ, moveComponentX, 0)) {
+      finalDeltaX += moveComponentX;
     }
   }
+
+  // If there's a Z component to test
+  // Use currentX + finalDeltaX for the "other axis" coordinate when checking Z movement.
+  // This ensures that if X movement was successful, Z collision is tested from that new X position.
+  if (moveComponentZ !== 0) {
+    if (!isWall(currentX + finalDeltaX, currentZ + moveComponentZ, 0, moveComponentZ)) {
+      finalDeltaZ += moveComponentZ;
+    }
+  }
+
+  // Apply the final accumulated movements
+  camera.position.x += finalDeltaX;
+  camera.position.z += finalDeltaZ;
 
   // Check for Win Condition
   if (!gameWon) {
