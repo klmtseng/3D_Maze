@@ -1,0 +1,4 @@
+[gd_resource type="Environment" format=3 uid="uid://xxxxxxxxxxxx"]
+[resource]
+background_mode = 1
+background_color = Color(0.3, 0.3, 0.3, 1)

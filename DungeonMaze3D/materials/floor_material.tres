@@ -1,0 +1,11 @@
+[gd_resource type="StandardMaterial3D" load_steps=2 format=3 uid="uid://floormat_textured"]
+
+[ext_resource type="Texture2D" uid="uid://floortexplaceholder" path="res://assets/textures/floor_texture.png" id="1_floortex"]
+
+[resource]
+albedo_texture = ExtResource("1_floortex")
+uv1_scale = Vector3(3, 3, 3) # Example UV scaling
+# Keep grey base color
+albedo_color = Color(0.4, 0.4, 0.4, 1)
+metallic = 0.1
+roughness = 0.9

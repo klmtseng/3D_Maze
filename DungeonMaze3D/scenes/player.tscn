@@ -1,0 +1,61 @@
+[gd_scene load_steps=8 format=3 uid="uid://playerscn_v4"] ; New UID
+
+[ext_resource type="Script" path="res://scripts/player_controller.gd" id="1_ctrl"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_qsd8r"]
+radius = 0.5
+height = 1.8
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_playerbody"]
+radius = 0.5
+height = 1.8
+
+[sub_resource type="BoxMesh" id="SwordMesh_blade"]
+size = Vector3(0.05, 0.6, 0.01)
+
+[sub_resource type="StandardMaterial3D" id="SwordMaterial_simple"]
+albedo_color = Color(0.7, 0.7, 0.8, 1)
+metallic = 0.8
+roughness = 0.3
+
+[sub_resource type="BoxMesh" id="SwordMesh_hilt"]
+size = Vector3(0.08, 0.08, 0.15)
+
+# RayCast3D doesn't have visual subresources, it's defined directly.
+
+[node name="Player" type="CharacterBody3D" groups=["player"]] ; Added to "player" group
+script = ExtResource("1_ctrl")
+collision_layer = 1 # Explicitly set player to layer 1 (default anyway)
+collision_mask = 4294967295 # Collide with everything by default, can be refined
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+
+	[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+	shape = SubResource("CapsuleShape3D_qsd8r")
+
+		[node name="MeshInstance3D_Body" type="MeshInstance3D" parent="CollisionShape3D"]
+		mesh = SubResource("CapsuleMesh_playerbody")
+		visible = false
+
+	[node name="Head" type="Node3D" parent="."]
+	transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+
+		[node name="Camera3D" type="Camera3D" parent="Head"]
+		current = true
+		fov = 75.0
+
+			[node name="SwordVisual" type="Node3D" parent="."]
+			transform = Transform3D(1,0,0, 0,1,0, 0,0,1, 0.3,-0.3,-0.5)
+
+				[node name="Blade" type="MeshInstance3D" parent="SwordVisual"]
+				mesh = SubResource("SwordMesh_blade")
+				material_override = SubResource("SwordMaterial_simple")
+				transform = Transform3D(1,0,0, 0,1,0, 0,0,1, 0,0.2,0)
+
+				[node name="Hilt" type="MeshInstance3D" parent="SwordVisual"]
+				mesh = SubResource("SwordMesh_hilt")
+				material_override = SubResource("SwordMaterial_simple")
+				transform = Transform3D(1,0,0, 0,1,0, 0,0,1, 0,-0.15,0)
+
+			[node name="AttackRayCast" type="RayCast3D" parent="."]
+			target_position = Vector3(0, 0, -1.5)
+			collision_mask = 2 # Monster layer

@@ -1,0 +1,67 @@
+[gd_scene load_steps=7 format=3 uid="uid://mainscene_v5"] ; New UID
+
+[ext_resource type="Script" path="res://scripts/maze_generator.gd" id="1_mg"]
+[ext_resource type="Script" path="res://scripts/maze_visualizer.gd" id="2_mv"]
+[ext_resource type="PackedScene" uid="uid://playerscn_v4" path="res://scenes/player.tscn" id="3_player"]
+[ext_resource type="PackedScene" uid="uid://monsterscn_v2" path="res://scenes/monster.tscn" id="4_monster"]
+
+[sub_resource type="Environment" id="Environment_default"]
+background_mode = 1 # Color background
+background_color = Color(0.1, 0.1, 0.15, 1) # Dark bluish background
+ambient_light_source = 3 # Ambient color
+ambient_light_color = Color(0.2, 0.2, 0.3, 1) # Dim ambient light
+ambient_light_energy = 0.3
+tonemap_mode = 2 # ACES
+ssao_enabled = true
+ssao_radius = 1.0
+ssao_intensity = 1.5
+glow_enabled = true
+glow_levels = "3,5" # Standard glow levels
+glow_intensity = 0.8
+glow_strength = 1.0
+glow_blend_mode = 2 # Additive glow
+
+[node name="Main" type="Node3D"]
+
+	[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+	environment = SubResource("Environment_default")
+
+	[node name="MazeGeneratorNode" type="Node" parent="."]
+	script = ExtResource("1_mg")
+
+	[node name="MazeVisualizerNode" type="Node3D" parent="."]
+	script = ExtResource("2_mv")
+	# maze_width = 10 (using default from script)
+	# maze_height = 10 (using default from script)
+
+	[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+	transform = Transform3D(-0.866, -0.433, 0.25, 0, 0.5, 0.866, -0.5, 0.75, -0.433, 0, 8, 0) # Lowered Y, bit further
+	light_color = Color(0.7, 0.7, 0.9, 1) # Slightly bluish cool light
+	light_energy = 0.6 # Dimmed down
+	shadow_enabled = true
+	directional_shadow_mode = 2 # PSSM 2 cascades (good balance)
+
+	[node name="PlayerInstance" parent="." instance=ExtResource("3_player")]
+	transform = Transform3D(1,0,0, 0,1,0, 0,0,1, 2.0,1.0,2.0)
+
+	[node name="MonsterInstance" parent="." instance=ExtResource("4_monster")]
+	transform = Transform3D(1,0,0, 0,1,0, 0,0,1, 10.0,1.0,6.0)
+
+	# Add some local lights
+	[node name="OmniLight_PlayerStart" type="OmniLight3D" parent="."]
+	# Position near player start (2,1,2)
+	transform = Transform3D(1,0,0, 0,1,0, 0,0,1, 2.5, 1.5, 2.5)
+	light_color = Color(1, 0.7, 0.3, 1) # Warm color
+	light_energy = 2.0
+	omni_range = 8.0
+	omni_attenuation = 1.0 # Default quadratic attenuation
+	shadow_enabled = true
+
+	[node name="OmniLight_ExitArea" type="OmniLight3D" parent="."]
+	# Position near where exit portal will be (approx based on 10x10 maze, cell_size 4)
+	# Exit portal at (10-0.5)*4 = 38, (10-0.5)*4 = 38
+	transform = Transform3D(1,0,0, 0,1,0, 0,0,1, 38, 1.5, 38)
+	light_color = Color(0.4, 0.6, 1, 1) # Cool blueish for exit
+	light_energy = 3.0
+	omni_range = 10.0
+	shadow_enabled = true

@@ -1,0 +1,12 @@
+[application]
+
+config/name="DungeonMaze3D"
+run/main_scene="res://scenes/main_scene.tscn"
+config/features=PackedStringArray("4.2", "GL Compatibility")
+config/icon="res://icon.svg"
+
+[rendering]
+
+renderer/rendering_method="mobile"
+renderer/rendering_method.mobile="gl_compatibility"
+environment/defaults/default_environment="res://default_env.tres"

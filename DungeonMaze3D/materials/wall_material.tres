@@ -1,0 +1,11 @@
+[gd_resource type="StandardMaterial3D" load_steps=2 format=3 uid="uid://wallmat_textured"]
+
+[ext_resource type="Texture2D" uid="uid://walltexplaceholder" path="res://assets/textures/wall_texture.png" id="1_walltex"]
+
+[resource]
+albedo_texture = ExtResource("1_walltex")
+uv1_scale = Vector3(2, 2, 2) # Example UV scaling
+# Keep brownish base color as fallback or tint
+albedo_color = Color(0.6, 0.4, 0.2, 1)
+metallic = 0.2
+roughness = 0.8

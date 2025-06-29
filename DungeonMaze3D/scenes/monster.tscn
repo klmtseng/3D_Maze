@@ -1,0 +1,32 @@
+[gd_scene load_steps=5 format=3 uid="uid://monsterscn_v2"] ; New UID
+
+[ext_resource type="Script" path="res://scripts/monster_ai.gd" id="1_ai"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_monster"]
+radius = 0.6
+height = 1.5
+
+[sub_resource type="SphereMesh" id="SphereMesh_monster_body"]
+radius = 0.6
+height = 1.2
+
+[sub_resource type="StandardMaterial3D" id="MonsterMaterial_simple"]
+albedo_color = Color(0.8, 0.2, 0.2, 1)
+
+[node name="Monster" type="CharacterBody3D" groups=["monsters"]] ; Added to "monsters" group
+script = ExtResource("1_ai")
+collision_layer = 2
+collision_mask = 1
+
+	[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+	transform = Transform3D(1,0,0, 0,1,0, 0,0,1, 0,0.75,0)
+	shape = SubResource("CapsuleShape3D_monster")
+
+	[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+	transform = Transform3D(1,0,0, 0,1,0, 0,0,1, 0,0.75,0)
+	mesh = SubResource("SphereMesh_monster_body")
+	material_override = SubResource("MonsterMaterial_simple")
+
+	[node name="NavigationAgent3D" type="NavigationAgent3D" parent="."]
+	path_desired_distance = 0.5
+	target_desired_distance = 0.5
